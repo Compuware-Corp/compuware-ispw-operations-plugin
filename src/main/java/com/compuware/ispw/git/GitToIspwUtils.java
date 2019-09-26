@@ -130,7 +130,23 @@ public class GitToIspwUtils
 		return map;
 	}
 	
-	public static void addNewPushToDb(PrintStream logger, EnvVars envVars, DB mapDb, IndexTreeList<GitPushInfo> gitPushList, String branchMapping)
+	/**
+	 * Creates a new GitPushInfo object using the information in the envVars and the branchMappings. If the created GitPushInfo
+	 * object does not already exist in theh gitPushList, then it is added and a commit is done on the database.
+	 * 
+	 * @param logger
+	 *            the logger
+	 * @param envVars
+	 *            the environment variables including ref, refId, fromHash, and toHash
+	 * @param mapDb
+	 *            the database where push information is stored
+	 * @param gitPushList
+	 *            the List of GitPushInfo objects that is linked to the database.
+	 * @param branchMapping
+	 *            The branch mappings.
+	 */
+	public static void addNewPushToDb(PrintStream logger, EnvVars envVars, DB mapDb, IndexTreeList<GitPushInfo> gitPushList,
+			String branchMapping)
 	{
 		String toHash = envVars.get(GitToIspwConstants.VAR_TO_HASH, GitToIspwConstants.VAR_TO_HASH);
 		String fromHash = envVars.get(GitToIspwConstants.VAR_FROM_HASH, GitToIspwConstants.VAR_FROM_HASH);
@@ -165,15 +181,46 @@ public class GitToIspwUtils
 		}
 	}
 	
+	/**
+	 * Calls the IspwCLI and returns whether the execution was successful. Any exceptions thrown by the executor are caught and
+	 * returned as a boolean.
+	 * 
+	 * @param launcher
+	 *            the launcher
+	 * @param build
+	 *            the Jenkins Run
+	 * @param logger
+	 *            the logger
+	 * @param mapDb
+	 *            the database that store the Git push information.
+	 * @param gitPushList
+	 *            the list of GitPushInfos that is linked to the database. The IspwCLI will be called once for each push.
+	 * @param envVars
+	 *            the environment variables including ref, refId, fromHash, and toHash
+	 * @param publishStep
+	 *            The step that this CLI execution is being called from. The publish step is used to get the information input
+	 *            into the Jenkins UI.
+	 * @param targetFolder
+	 *            The folder that holds the failed commit file and where the CLI workspace should be created.
+	 * @return a boolean indicating success.
+	 * @throws InterruptedException
+	 * @throws IOException
+	 */
 	public static boolean callCli(Launcher launcher, Run<?, ?> build, PrintStream logger, DB mapDb,
 			IndexTreeList<GitPushInfo> gitPushList, EnvVars envVars, IGitToIspwPublish publishStep, String targetFolder)
 			throws InterruptedException, IOException
 	{
 		CpwrGlobalConfiguration globalConfig = CpwrGlobalConfiguration.get();
-		assert launcher != null;
+		if (launcher == null)
+		{
+			return false;
+		}
 		VirtualChannel vChannel = launcher.getChannel();
 
-		assert vChannel != null;
+		if (vChannel == null)
+		{
+			return false;
+		}
 		Properties remoteProperties = vChannel.call(new RemoteSystemProperties());
 		String remoteFileSeparator = remoteProperties.getProperty(CommonConstants.FILE_SEPARATOR_PROPERTY_KEY);
 		String osFile = launcher.isUnix()
@@ -235,7 +282,26 @@ public class GitToIspwUtils
 		return success;
 	}
 	
-	public static void logResultsAndNotifyBitbucket(PrintStream logger, Run<?, ?> build, TaskListener listener, DB mapDb, String gitRepoUrl, StandardUsernamePasswordCredentials gitCredentials) throws MalformedURLException
+	/**
+	 * Logs the results to the logger and posts the results to Bitbucket, if applicable. This method also clears out any pushes
+	 * that are completely successful.
+	 * 
+	 * @param logger
+	 *            the logger
+	 * @param build
+	 *            the build
+	 * @param listener
+	 *            the TaskListener used when posting results to Bitbucket.
+	 * @param mapDb
+	 *            the database containing the GitPushInfo objects
+	 * @param gitRepoUrl
+	 *            the URL to the git repository
+	 * @param gitCredentials
+	 *            the Git credentials
+	 * @throws MalformedURLException
+	 */
+	public static void logResultsAndNotifyBitbucket(PrintStream logger, Run<?, ?> build, TaskListener listener, DB mapDb,
+			String gitRepoUrl, StandardUsernamePasswordCredentials gitCredentials) throws MalformedURLException
 	{
 		BitbucketNotifier notifier = new BitbucketNotifier(logger, build, listener);
 		URL url = new URL(gitRepoUrl);
@@ -266,7 +332,26 @@ public class GitToIspwUtils
 		}
 	}
 
-	private static void notifyBitbucket(String gitRepoUrl, GitPushInfo currentPush, StandardUsernamePasswordCredentials gitCredentials, PrintStream logger, BitbucketNotifier notifier, String baseUrl) throws MalformedURLException
+	/**
+	 * Notifies Bitbucket whether the synchronization was successful.
+	 * 
+	 * @param gitRepoUrl
+	 *            the URL to the git repository
+	 * @param currentPush
+	 *            the GitPushInfo to post results for.
+	 * @param gitCredentials
+	 *            the Git credentials
+	 * @param logger
+	 *            the logger
+	 * @param notifier
+	 *            the BitbucketNotifier to use
+	 * @param baseUrl
+	 *            the base URL
+	 * @throws MalformedURLException
+	 */
+	private static void notifyBitbucket(String gitRepoUrl, GitPushInfo currentPush,
+			StandardUsernamePasswordCredentials gitCredentials, PrintStream logger, BitbucketNotifier notifier, String baseUrl)
+			throws MalformedURLException
 	{
 		if (gitRepoUrl.contains("/bitbucket/")) //$NON-NLS-1$
 		{
@@ -292,6 +377,14 @@ public class GitToIspwUtils
 		}
 	}
 	
+	/**
+	 * Logs the reults to the logger.
+	 * 
+	 * @param logger
+	 *            the logger
+	 * @param currentPush
+	 *            the Git push to log results for.
+	 */
 	public static void logResults(PrintStream logger, GitPushInfo currentPush)
 	{
 		logger.println("***********************************************************");
